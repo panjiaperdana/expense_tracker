@@ -1,0 +1,19 @@
+# DBeaver workspace metadata
+.dbeaver/
+.project
+
+# OS-specific junk
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+*.tmp
+
+# IDE/editor folders
+.vscode/
+.idea/
+
+# Optional: ignore exports or backups
+*.bak
+*.sql~  # temp SQL files
