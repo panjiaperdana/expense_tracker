@@ -23,7 +23,6 @@ def update_category(category_id: int, new_name: str) -> bool:
         cat = session.get(Category, category_id)
         if not cat:
             return False
-        #Update the category name
         cat.category_name = new_name
         session.commit()
         return True
@@ -50,6 +49,15 @@ def add_account(name: str) -> None:
             session.add(Account(account_name=name))
             session.commit()
 
+def update_account(account_id: int, new_name: str) -> bool:
+    with SessionLocal() as session:
+        acc = session.get(Account, account_id)
+        if not acc:
+            return False
+        acc.account_name = new_name
+        session.commit()
+        return True
+
 def delete_account(account_id: int) -> bool:
     with SessionLocal() as session:
         acc = session.get(Account, account_id)
@@ -58,7 +66,6 @@ def delete_account(account_id: int) -> bool:
         session.delete(acc)
         session.commit()
         return True
-
 
 # ────────────────────────────────
 # Transaction Type CRUD
@@ -73,20 +80,38 @@ def add_transaction_type(name: str) -> None:
             session.add(TransactionType(type_name=name))
             session.commit()
 
-
 # ────────────────────────────────
 # Initial Balance CRUD
 # ────────────────────────────────
-def add_initial_balance(account_id: int, balance: float) -> None:
+def ensure_initial_balance(account_id: int, balance: float) -> None:
     with SessionLocal() as session:
-        session.add(InitialBalance(account_id=account_id, balance=balance))
+        any_row = session.query(InitialBalance).first()
+        if not any_row:
+            session.add(InitialBalance(account_id=account_id, balance=balance))
+        else:
+            ib = session.query(InitialBalance).filter_by(account_id=account_id).first()
+            if ib:
+                ib.balance = balance
         session.commit()
 
 def get_initial_balance(account_id: int) -> float | None:
     with SessionLocal() as session:
+        if not session.query(InitialBalance).first():
+            ib = InitialBalance(account_id=account_id, balance=0.00)
+            session.add(ib)
+            session.commit()
+            return float(ib.balance)
         ib = session.query(InitialBalance).filter_by(account_id=account_id).first()
         return float(ib.balance) if ib else None
 
+def update_initial_balance(account_id: int, new_balance: float) -> bool:
+    with SessionLocal() as session:
+        ib = session.query(InitialBalance).filter_by(account_id=account_id).first()
+        if not ib:
+            return False
+        ib.balance = new_balance
+        session.commit()
+        return True
 
 # ────────────────────────────────
 # Actual Balance CRUD
@@ -105,7 +130,6 @@ def get_actual_balance(account_id: int) -> list[dict]:
     with SessionLocal() as session:
         rows = session.query(ActualBalance).filter_by(account_id=account_id).all()
         return [{"date": r.transaction_date.isoformat(), "amount": float(r.amount)} for r in rows]
-
 
 # ────────────────────────────────
 # Transaction Record CRUD
@@ -162,7 +186,6 @@ def query_transactions(start_date: str | None = None,
             for r in rows
         ]
 
-
 # ────────────────────────────────
 # UTILITY Functions
 # ────────────────────────────────
@@ -174,7 +197,6 @@ def summary_by_month() -> list[dict]:
         ).group_by("month").order_by("month DESC")
         rows = session.execute(stmt).all()
         return [{"month": r[0], "total": float(r[1])} for r in rows]
-
 
 def summary_by_category(start_date: str | None = None, end_date: str | None = None) -> list[dict]:
     with SessionLocal() as session:
