@@ -66,7 +66,6 @@
         Spinner:
             id: category_spinner
             text: "Category"
-            values: root.categories
             size_hint_x: 0.25
         TextInput:
             id: note_input
@@ -75,7 +74,7 @@
         Button:
             text: "Add"
             size_hint_x: 0.1
-            on_release: root.on_add()
+            on_release: root.on_add_transaction()
 
     # Filter row
     BoxLayout:
@@ -93,7 +92,6 @@
         Spinner:
             id: filter_category
             text: "All"
-            values: ["All"] + root.categories
             size_hint_x: 0.25
         Button:
             text: "Filter"
@@ -117,6 +115,9 @@
         Button:
             text: "Category Summary"
             on_release: root.show_category_summary()
+        Button:
+            text: "Restart App"
+            on_release: app.restart()   # ✅ new restart button
 
     BoxLayout:
         size_hint_y: None

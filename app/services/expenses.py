@@ -1,17 +1,24 @@
 from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
+from loguru import logger
+from app.db import get_session
+from app.models import TransactionRecord  # adjust to your ORM model
+
 from app.db import SessionLocal
 from app.models import (
     Account, Category, TransactionType, InitialBalance, ActualBalance, TransactionRecord
 )
 
+
+
 # ────────────────────────────────
 # Category CRUD
 # ────────────────────────────────
-def list_categories() -> list[str]:
+def list_categories() -> list[dict]:
     with SessionLocal() as session:
-        return [c.category_name for c in session.query(Category).order_by(Category.category_name).all()]
+        categories = session.query(Category).order_by(Category.category_name).all()
+        return [{"id": c.category_id, "name": c.category_name} for c in categories]
 
 def add_category(name: str) -> None:
     with SessionLocal() as session:
@@ -150,20 +157,27 @@ def delete_actual_balance(balance_id: int) -> bool:
 # ────────────────────────────────
 # Transaction Record CRUD
 # ────────────────────────────────
-def add_transaction(account_id: int, category_id: int, type_id: int,
-                    transaction_date: str, amount: float, remark: str = "") -> int:
-    with SessionLocal() as session:
-        tr = TransactionRecord(
-            account_id=account_id,
-            category_id=category_id,
-            type_id=type_id,
-            transaction_date=date.fromisoformat(transaction_date),
-            amount=amount,
-            remark=remark
+def add_transaction(txn: dict) -> bool:
+    session = get_session()
+    try:
+        new_txn = TransactionRecord(
+            account_id=txn["account_id"],
+            category_id=txn["category_id"],
+            type_id=txn["type_id"],
+            transaction_date=txn["transaction_date"],
+            amount=txn["amount"],
+            remark=txn.get("remark"),
         )
-        session.add(tr)
+        session.add(new_txn)
         session.commit()
-        return tr.id
+        logger.info(f"Transaction added: {txn}")
+        return True
+    except Exception as e:
+        session.rollback()
+        logger.error(f"DB insert failed: {e}")
+        return False
+    finally:
+        session.close()
 
 def update_transaction(transaction_id: int, **kwargs) -> bool:
     with SessionLocal() as session:

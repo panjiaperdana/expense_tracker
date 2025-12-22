@@ -1,9 +1,19 @@
+import os
+import sys
+from pathlib import Path
+
+# --- Ensure imports like `from app.services...` work even if launched directly ---
+ROOT = Path(__file__).resolve().parents[1]  # D:\Project\expense_tracker
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from kivymd.app import MDApp
 from kivy.lang import Builder
 from kivy.uix.boxlayout import BoxLayout
 from loguru import logger
 from datetime import date
-from kivymd.uix.pickers import MDDatePicker  # ✅ for date picker
+from kivymd.uix.pickers import MDDatePicker
+from kivy.clock import Clock
 
 from app.services.expenses import (
     add_transaction, query_transactions, list_categories,
@@ -11,11 +21,27 @@ from app.services.expenses import (
 )
 from app.widgets.dialogs import EditExpensePopup
 
+
 class MainScreen(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.categories = list_categories()
+
+        raw_categories = list_categories()
+        self.categories = [c["name"] for c in raw_categories]   # spinner values
+        self.category_map = {c["name"]: c["id"] for c in raw_categories}  # name → real DB id
+
+        Clock.schedule_once(self._populate_spinners, 0)
         self.refresh_table()
+        logger.info(f"Category map: {self.category_map}")
+
+
+    def _populate_spinners(self, *args):
+        self.ids.category_spinner.values = self.categories
+        self.ids.filter_category.values = ["All"] + self.categories
+        if self.categories:
+            self.ids.category_spinner.text = self.categories[0]  # default selection
+        # Debug
+        logger.info(f"Categories loaded: {self.categories}")
 
     @property
     def categories(self):
@@ -48,42 +74,45 @@ class MainScreen(BoxLayout):
         self.ids.rv.data = rv_data
 
     def open_date_picker(self):
-        """Open a calendar and set the chosen date into date_input."""
-        picker = MDDatePicker(year=date.today().year,
-                              month=date.today().month,
-                              day=date.today().day)
+        picker = MDDatePicker(
+            year=date.today().year,
+            month=date.today().month,
+            day=date.today().day
+        )
         picker.bind(on_save=self._on_date_selected)
         picker.open()
 
     def _on_date_selected(self, instance, value, date_range):
-        """Callback when date is chosen."""
         self.ids.date_input.text = value.isoformat()
 
-    def on_add(self):
+    def on_add_transaction(self):
         d = self.ids.date_input.text.strip() or date.today().isoformat()
         amt_text = self.ids.amount_input.text.strip()
         cat = self.ids.category_spinner.text
         note = self.ids.note_input.text.strip()
+
         try:
-            if cat == "Category":
-                raise ValueError("Please choose a category.")
+            if cat not in self.category_map:
+                raise ValueError(f"Invalid category: {cat}")
             amt = float(amt_text)
+            cat_id = self.category_map[cat]
+            type_id = 2  # expense
 
-            # ✅ Adjusted call: you need account_id and type_id
-            # For demo, assume account_id=1, type_id=2 (expense)
-            add_transaction(account_id=1,
-                            category_id=self.categories.index(cat) + 1,
-                            type_id=2,
-                            transaction_date=d,
-                            amount=amt,
-                            remark=note)
+            txn = {
+                "account_id": 1,
+                "category_id": cat_id,
+                "type_id": type_id,
+                "transaction_date": d,
+                "amount": amt,
+                "remark": note,
+            }
 
-            logger.info(f"Added transaction: {d}, {amt}, {cat}, {note}")
+            logger.info(f"Adding transaction: {txn}")
+            add_transaction(txn)
+
             self.ids.amount_input.text = ""
             self.ids.note_input.text = ""
             self.refresh_table()
-        except ValueError as ve:
-            logger.error(f"Validation error: {ve}")
         except Exception as e:
             logger.error(f"Add failed: {e}")
 
@@ -129,10 +158,16 @@ class MainScreen(BoxLayout):
         Popup(title="Category Summary", content=Label(text=summary_text),
               size_hint=(0.6, 0.6)).open()
 
+
 class ExpenseTrackerApp(MDApp):
+    def restart(self, *args):
+        """Restart the app using module form to preserve package imports."""
+        os.execl(sys.executable, sys.executable, "-m", "app.main")
+
     def build(self):
         Builder.load_file("app/ui.kv")
         return MainScreen()
+
 
 if __name__ == "__main__":
     ExpenseTrackerApp().run()
