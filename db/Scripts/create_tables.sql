@@ -70,6 +70,7 @@ INSERT
 	category (category_name)
 VALUES 
     ('Salary'),
+    ('Reimburstment'),
     ('Housing'),
     ('Transportation'),
     ('Food'),

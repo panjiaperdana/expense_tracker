@@ -1,5 +1,6 @@
 from datetime import date
 from sqlalchemy import func, select
+from sqlalchemy.orm import joinedload
 from app.db import SessionLocal
 from app.models import (
     Account, Category, TransactionType, InitialBalance, ActualBalance, TransactionRecord
@@ -183,21 +184,29 @@ def delete_transaction(transaction_id: int) -> bool:
         session.commit()
         return True
 
-def query_transactions(start_date: str | None = None,
-                       end_date: str | None = None,
-                       category_id: int | None = None) -> list[dict]:
+def query_transactions(start_date=None, end_date=None, category=None):
     with SessionLocal() as session:
-        q = session.query(TransactionRecord)
+        # Load category relationship so we can access category_name
+        q = session.query(TransactionRecord).options(joinedload(TransactionRecord.category_rel))
+
         if start_date:
-            q = q.filter(TransactionRecord.transaction_date >= date.fromisoformat(start_date))
+            q = q.filter(TransactionRecord.transaction_date >= start_date)
         if end_date:
-            q = q.filter(TransactionRecord.transaction_date <= date.fromisoformat(end_date))
-        if category_id:
-            q = q.filter(TransactionRecord.category_id == category_id)
-        rows = q.order_by(TransactionRecord.transaction_date.desc(), TransactionRecord.id.desc()).all()
+            q = q.filter(TransactionRecord.transaction_date <= end_date)
+        if category and category != "All":
+            q = q.join(Category).filter(Category.category_name == category)
+
+        rows = q.order_by(TransactionRecord.transaction_date.desc(),
+                          TransactionRecord.id.desc()).all()
+
         return [
-            {"id": r.id, "date": r.transaction_date.isoformat(),
-             "amount": float(r.amount), "remark": r.remark or ""}
+            {
+                "id": r.id,
+                "date": r.transaction_date.isoformat(),
+                "amount": float(r.amount),
+                "category": r.category_rel.category_name if r.category_rel else "Unknown",
+                "note": r.remark or ""
+            }
             for r in rows
         ]
 

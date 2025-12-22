@@ -1,5 +1,3 @@
-TRUNCATE TABLE transaction_record RESTART IDENTITY CASCADE;
-
 WITH rnd AS (
   SELECT
     g,
@@ -18,11 +16,14 @@ SELECT
        ELSE (SELECT account_id FROM account WHERE account_name = 'BNI')
   END,
   r.category_id,
-  CASE WHEN r.category_id = 1 THEN 1 ELSE 2 END AS type_id,
+  CASE 
+    WHEN r.category_id IN (1, 2) THEN 1   -- ✅ Salary or Reimburstment → type_id = 1
+    ELSE 2                                -- all others → type_id = 2
+  END AS type_id,
   r.amount,
   CASE r.category_id
     WHEN 1 THEN 'Monthly salary'
-    WHEN 2 THEN 'Rent payment'
+    WHEN 2 THEN 'Reimburstment'        -- updated remark for category_id 2
     WHEN 3 THEN 'Transportation cost'
     WHEN 4 THEN 'Groceries'
     WHEN 5 THEN 'Electric bill'
@@ -37,5 +38,3 @@ SELECT
     ELSE 'Miscellaneous expense'
   END AS remark
 FROM rnd r;
-
-SELECT * FROM transaction_record;
