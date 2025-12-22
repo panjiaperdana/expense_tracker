@@ -1,5 +1,5 @@
 -- For Fresh New Data
-DROP TABLE IF EXISTS transaction_record, actual_balance, initial_balance, account, category, transaction_type CASCADE;
+DROP TABLE IF EXISTS transaction_record, actual_balance, initial_balance, account, category CASCADE;
 
 -- Account Table
 CREATE TABLE IF NOT EXISTS account (
@@ -61,47 +61,29 @@ CONFLICT DO NOTHING;
 -- Category
 CREATE TABLE IF NOT EXISTS category (
 	category_id SERIAL PRIMARY KEY,
-	category_name VARCHAR(50) UNIQUE NOT NULL
+	category_name VARCHAR(50) UNIQUE NOT NULL,
+	category_type VARCHAR(20) NOT NULL
 );
 
 -- Insert default categories
-INSERT
-	INTO
-	category (category_name)
-VALUES 
-    ('Salary'),
-    ('Reimburstment'),
-    ('Housing'),
-    ('Transportation'),
-    ('Food'),
-    ('Utilities'),
-    ('Healthcare'),
-    ('Personal Care'),
-    ('Entertainment'),
-    ('Savings'),
-    ('Investments'),
-    ('Debt Payments'),
-    ('Kids'),
-    ('Tax'),
-    ('Other')
-ON
-CONFLICT DO NOTHING;
-
--- Transaction Type
-CREATE TABLE IF NOT EXISTS transaction_type (
-	type_id SERIAL PRIMARY KEY,
-	type_name VARCHAR(20) UNIQUE NOT NULL
-);
-
--- Insert default types
-INSERT
-	INTO
-	transaction_type (type_name)
-VALUES 
-    ('Debit'),
-    ('Credit')
-ON
-CONFLICT DO NOTHING;
+INSERT INTO category (category_name, category_type)
+VALUES
+    ('Salary', 'Debit'),
+    ('Reimburstment', 'Debit'),
+    ('Housing', 'Credit'),
+    ('Transportation', 'Credit'),
+    ('Food', 'Credit'),
+    ('Utilities', 'Credit'),
+    ('Healthcare', 'Credit'),
+    ('Personal Care', 'Credit'),
+    ('Entertainment', 'Credit'),
+    ('Savings', 'Credit'),
+    ('Investments', 'Credit'),
+    ('Debt Payments', 'Credit'),
+    ('Kids', 'Credit'),
+    ('Tax', 'Credit'),
+    ('Other', 'Credit')
+ON CONFLICT DO NOTHING;
 
 -- Actual Balance Table
 CREATE TABLE IF NOT EXISTS actual_balance (
@@ -140,7 +122,6 @@ CREATE TABLE IF NOT EXISTS transaction_record (
 	transaction_date DATE NOT NULL,
 	account_id INT REFERENCES account(account_id),
 	category_id INT REFERENCES category(category_id),
-	type_id INT REFERENCES transaction_type(type_id),
 	amount NUMERIC(15, 2) DEFAULT 0.00,
 	remark TEXT
 );

@@ -2,15 +2,8 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 from loguru import logger
-from app.db import get_session
-from app.models import TransactionRecord  # adjust to your ORM model
-
-from app.db import SessionLocal
-from app.models import (
-    Account, Category, TransactionType, InitialBalance, ActualBalance, TransactionRecord
-)
-
-
+from app.db import get_session, SessionLocal
+from app.models import Account, Category, InitialBalance, ActualBalance, TransactionRecord
 
 # ────────────────────────────────
 # Category CRUD
@@ -18,20 +11,23 @@ from app.models import (
 def list_categories() -> list[dict]:
     with SessionLocal() as session:
         categories = session.query(Category).order_by(Category.category_name).all()
-        return [{"id": c.category_id, "name": c.category_name} for c in categories]
+        return [{"id": c.category_id, "name": c.category_name, "type": c.category_type} for c in categories]
 
-def add_category(name: str) -> None:
+def add_category(name: str, category_type: str) -> None:
     with SessionLocal() as session:
         if not session.query(Category).filter_by(category_name=name).first():
-            session.add(Category(category_name=name))
+            session.add(Category(category_name=name, category_type=category_type))
             session.commit()
 
-def update_category(category_id: int, new_name: str) -> bool:
+def update_category(category_id: int, new_name: str | None = None, new_type: str | None = None) -> bool:
     with SessionLocal() as session:
         cat = session.get(Category, category_id)
         if not cat:
             return False
-        cat.category_name = new_name
+        if new_name:
+            cat.category_name = new_name
+        if new_type:
+            cat.category_type = new_type
         session.commit()
         return True
 
@@ -47,9 +43,10 @@ def delete_category(category_id: int) -> bool:
 # ────────────────────────────────
 # Account CRUD
 # ────────────────────────────────
-def list_accounts() -> list[str]:
-    with SessionLocal() as session:
-        return [a.account_name for a in session.query(Account).order_by(Account.account_name).all()]
+def list_accounts():
+    with get_session() as session:
+        accounts = session.query(Account).order_by(Account.account_name).all()
+        return [{"id": a.account_id, "name": a.account_name} for a in accounts]
 
 def add_account(name: str) -> None:
     with SessionLocal() as session:
@@ -76,35 +73,25 @@ def delete_account(account_id: int) -> bool:
         return True
 
 # ────────────────────────────────
-# Transaction Type R, default value provided
-# ────────────────────────────────
-def list_transaction_types() -> list[str]:
-    with SessionLocal() as session:
-        return [t.type_name for t in session.query(TransactionType).order_by(TransactionType.type_name).all()]
-
-# ────────────────────────────────
-# Initial Balance CRU
+# Initial Balance
 # ────────────────────────────────
 def ensure_initial_balance(account_id: int, balance: float) -> None:
     with SessionLocal() as session:
-        any_row = session.query(InitialBalance).first()
-        if not any_row:
+        ib = session.query(InitialBalance).filter_by(account_id=account_id).first()
+        if not ib:
             session.add(InitialBalance(account_id=account_id, balance=balance))
         else:
-            ib = session.query(InitialBalance).filter_by(account_id=account_id).first()
-            if ib:
-                ib.balance = balance
+            ib.balance = balance
         session.commit()
 
 def get_initial_balance(account_id: int) -> float | None:
     with SessionLocal() as session:
-        if not session.query(InitialBalance).first():
+        ib = session.query(InitialBalance).filter_by(account_id=account_id).first()
+        if not ib:
             ib = InitialBalance(account_id=account_id, balance=0.00)
             session.add(ib)
             session.commit()
-            return float(ib.balance)
-        ib = session.query(InitialBalance).filter_by(account_id=account_id).first()
-        return float(ib.balance) if ib else None
+        return float(ib.balance)
 
 def update_initial_balance(account_id: int, new_balance: float) -> bool:
     with SessionLocal() as session:
@@ -116,7 +103,7 @@ def update_initial_balance(account_id: int, new_balance: float) -> bool:
         return True
 
 # ────────────────────────────────
-# Actual Balance CRUD
+# Actual Balance
 # ────────────────────────────────
 def add_actual_balance(account_id: int, transaction_date: str, amount: float) -> None:
     with SessionLocal() as session:
@@ -133,7 +120,7 @@ def get_actual_balance(account_id: int) -> list[dict]:
         rows = session.query(ActualBalance).filter_by(account_id=account_id).all()
         return [{"date": r.transaction_date.isoformat(), "amount": float(r.amount)} for r in rows]
 
-def update_actual_balance(balance_id: int, new_date: str | None = None, new_amount:float | None = None) -> bool:
+def update_actual_balance(balance_id: int, new_date: str | None = None, new_amount: float | None = None) -> bool:
     with SessionLocal() as session:
         ab = session.get(ActualBalance, balance_id)
         if not ab:
@@ -155,15 +142,22 @@ def delete_actual_balance(balance_id: int) -> bool:
         return True
 
 # ────────────────────────────────
-# Transaction Record CRUD
+# Transaction Record
 # ────────────────────────────────
 def add_transaction(txn: dict) -> bool:
     session = get_session()
     try:
+        # Optional safety: ensure selected category exists and matches type (if provided)
+        cat = session.get(Category, txn["category_id"])
+        if not cat:
+            raise ValueError("Selected category does not exist.")
+        # If UI passed category_type for validation, ensure consistency
+        if "category_type" in txn and txn["category_type"] and txn["category_type"] != cat.category_type:
+            raise ValueError("Selected category type does not match the category.")
+
         new_txn = TransactionRecord(
             account_id=txn["account_id"],
             category_id=txn["category_id"],
-            type_id=txn["type_id"],
             transaction_date=txn["transaction_date"],
             amount=txn["amount"],
             remark=txn.get("remark"),
@@ -200,7 +194,6 @@ def delete_transaction(transaction_id: int) -> bool:
 
 def query_transactions(start_date=None, end_date=None, category=None):
     with SessionLocal() as session:
-        # Load category relationship so we can access category_name
         q = session.query(TransactionRecord).options(joinedload(TransactionRecord.category_rel))
 
         if start_date:
@@ -219,6 +212,7 @@ def query_transactions(start_date=None, end_date=None, category=None):
                 "date": r.transaction_date.isoformat(),
                 "amount": float(r.amount),
                 "category": r.category_rel.category_name if r.category_rel else "Unknown",
+                "type": r.category_rel.category_type if r.category_rel else "Unknown",
                 "note": r.remark or ""
             }
             for r in rows
@@ -238,11 +232,15 @@ def summary_by_month() -> list[dict]:
 
 def summary_by_category(start_date: str | None = None, end_date: str | None = None) -> list[dict]:
     with SessionLocal() as session:
-        q = session.query(Category.category_name, func.sum(TransactionRecord.amount).label("total")) \
-                   .join(TransactionRecord, TransactionRecord.category_id == Category.category_id)
+        q = session.query(
+                Category.category_name,
+                Category.category_type,
+                func.sum(TransactionRecord.amount).label("total")
+            ).join(TransactionRecord, TransactionRecord.category_id == Category.category_id)
         if start_date:
             q = q.filter(TransactionRecord.transaction_date >= date.fromisoformat(start_date))
         if end_date:
             q = q.filter(TransactionRecord.transaction_date <= date.fromisoformat(end_date))
-        rows = q.group_by(Category.category_name).order_by(func.sum(TransactionRecord.amount).desc()).all()
-        return [{"category": r[0], "total": float(r[1])} for r in rows]
+        rows = q.group_by(Category.category_name, Category.category_type) \
+                .order_by(func.sum(TransactionRecord.amount).desc()).all()
+        return [{"category": r[0], "type": r[1], "total": float(r[2])} for r in rows]

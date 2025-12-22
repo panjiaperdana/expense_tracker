@@ -1,3 +1,4 @@
+# app/ui.kv
 #:import dp kivy.metrics.dp
 
 <ExpenseRow@BoxLayout>:
@@ -14,22 +15,22 @@
         size_hint_x: 0.1
     Label:
         text: root.date
-        size_hint_x: 0.2
+        size_hint_x: 0.15
     Label:
         text: root.category
-        size_hint_x: 0.2
+        size_hint_x: 0.15
     Label:
         text: root.amount
-        size_hint_x: 0.2
+        size_hint_x: 0.15
     Label:
         text: root.note
-        size_hint_x: 0.2
+        size_hint_x: 0.25
     BoxLayout:
-        size_hint_x: 0.1
+        size_hint_x: 0.15
         spacing: dp(5)
         Button:
             text: "Edit"
-            on_release: app.root.open_edit_dialog(root.exp_id)
+            on_release: app.root.open_edit_dialog(root.exp_id) if hasattr(app.root, 'open_edit_dialog') else None
         Button:
             text: "Del"
             on_release: app.root.on_delete(root.exp_id)
@@ -37,7 +38,7 @@
 <MainScreen>:
     canvas.before:
         Color:
-            rgba: 0.1, 0.1, 0.1, 1  # dark gray
+            rgba: 0.1, 0.1, 0.1, 1
         Rectangle:
             pos: self.pos
             size: self.size
@@ -51,22 +52,35 @@
         size_hint_y: None
         height: dp(44)
         spacing: dp(10)
+
         Button:
             text: "Pick Date"
             on_release: root.open_date_picker() if hasattr(root, 'open_date_picker') else None
         TextInput:
             id: date_input
             hint_text: "YYYY-MM-DD"
-            size_hint_x: 0.2
+            size_hint_x: 0.15
         TextInput:
             id: amount_input
             hint_text: "Amount"
             input_filter: 'float'
-            size_hint_x: 0.2
+            size_hint_x: 0.15
         Spinner:
             id: category_spinner
-            text: "Category"
-            size_hint_x: 0.25
+            text: ""               # force selection
+            values: root.categories
+            size_hint_x: 0.2
+            on_text: root.update_type_spinner(self.text)
+        Spinner:
+            id: account_spinner
+            text: ""               # force selection
+            values: root.accounts
+            size_hint_x: 0.2
+        Spinner:
+            id: type_spinner
+            text: "Type"
+            disabled: True         # auto-filled from category
+            size_hint_x: 0.15
         TextInput:
             id: note_input
             hint_text: "Note"
@@ -75,6 +89,16 @@
             text: "Add"
             size_hint_x: 0.1
             on_release: root.on_add_transaction()
+
+    # Error Label
+    BoxLayout:
+        size_hint_y: None
+        height: dp(20)
+        spacing: dp(10)
+        Label:
+            id: error_label
+            text: ""
+            color: (1, 0, 0, 1)
 
     # Filter row
     BoxLayout:
@@ -92,6 +116,7 @@
         Spinner:
             id: filter_category
             text: "All"
+            values: root.categories
             size_hint_x: 0.25
         Button:
             text: "Filter"
@@ -111,14 +136,12 @@
             on_release: root.export_excel() if hasattr(root, 'export_excel') else None
         Button:
             text: "Monthly Summary"
-            on_release: root.show_monthly_summary()
+            on_release: root.show_monthly_summary() if hasattr(root, 'show_monthly_summary') else None
         Button:
             text: "Category Summary"
-            on_release: root.show_category_summary()
-        Button:
-            text: "Restart App"
-            on_release: app.restart()   # ✅ new restart button
+            on_release: root.show_category_summary() if hasattr(root, 'show_category_summary') else None
 
+    # Table header
     BoxLayout:
         size_hint_y: None
         height: dp(36)
@@ -130,23 +153,23 @@
         Label:
             text: "[b]Date[/b]"
             markup: True
-            size_hint_x: 0.2
+            size_hint_x: 0.15
         Label:
             text: "[b]Category[/b]"
             markup: True
-            size_hint_x: 0.2
+            size_hint_x: 0.15
         Label:
             text: "[b]Amount[/b]"
             markup: True
-            size_hint_x: 0.2
+            size_hint_x: 0.15
         Label:
             text: "[b]Note[/b]"
             markup: True
-            size_hint_x: 0.2
+            size_hint_x: 0.25
         Label:
             text: "[b]Actions[/b]"
             markup: True
-            size_hint_x: 0.1
+            size_hint_x: 0.15
 
     # RecycleView table
     RecycleView:

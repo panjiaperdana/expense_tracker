@@ -20,27 +20,16 @@ class Account(Base):
 
 
 # ────────────────────────────────
-# Category Table
+# Category Table (merged with TransactionType)
 # ────────────────────────────────
 class Category(Base):
     __tablename__ = "category"
 
     category_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     category_name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    category_type: Mapped[str] = mapped_column(String, nullable=False)  # Debit / Credit
 
     transactions = relationship("TransactionRecord", back_populates="category_rel")
-
-
-# ────────────────────────────────
-# Transaction Type Table
-# ────────────────────────────────
-class TransactionType(Base):
-    __tablename__ = "transaction_type"
-
-    type_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    type_name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-
-    transactions = relationship("TransactionRecord", back_populates="type_rel")
 
 
 # ────────────────────────────────
@@ -80,10 +69,8 @@ class TransactionRecord(Base):
     transaction_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
     account_id: Mapped[int] = mapped_column(ForeignKey("account.account_id"), nullable=False)
     category_id: Mapped[int] = mapped_column(ForeignKey("category.category_id"), nullable=False)
-    type_id: Mapped[int] = mapped_column(ForeignKey("transaction_type.type_id"), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     remark: Mapped[str | None] = mapped_column(String, nullable=True)
 
     account_rel = relationship("Account", back_populates="transactions")
     category_rel = relationship("Category", back_populates="transactions")
-    type_rel = relationship("TransactionType", back_populates="transactions")
