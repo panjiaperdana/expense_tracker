@@ -68,20 +68,14 @@ def delete_account(account_id: int) -> bool:
         return True
 
 # ────────────────────────────────
-# Transaction Type CRUD
+# Transaction Type R, default value provided
 # ────────────────────────────────
 def list_transaction_types() -> list[str]:
     with SessionLocal() as session:
         return [t.type_name for t in session.query(TransactionType).order_by(TransactionType.type_name).all()]
 
-def add_transaction_type(name: str) -> None:
-    with SessionLocal() as session:
-        if not session.query(TransactionType).filter_by(type_name=name).first():
-            session.add(TransactionType(type_name=name))
-            session.commit()
-
 # ────────────────────────────────
-# Initial Balance CRUD
+# Initial Balance CRU
 # ────────────────────────────────
 def ensure_initial_balance(account_id: int, balance: float) -> None:
     with SessionLocal() as session:
@@ -130,6 +124,27 @@ def get_actual_balance(account_id: int) -> list[dict]:
     with SessionLocal() as session:
         rows = session.query(ActualBalance).filter_by(account_id=account_id).all()
         return [{"date": r.transaction_date.isoformat(), "amount": float(r.amount)} for r in rows]
+
+def update_actual_balance(balance_id: int, new_date: str | None = None, new_amount:float | None = None) -> bool:
+    with SessionLocal() as session:
+        ab = session.get(ActualBalance, balance_id)
+        if not ab:
+            return False
+        if new_date:
+            ab.transaction_date = date.fromisoformat(new_date)
+        if new_amount is not None:
+            ab.amount = new_amount
+        session.commit()
+        return True
+
+def delete_actual_balance(balance_id: int) -> bool:
+    with SessionLocal() as session:
+        ab = session.get(ActualBalance, balance_id)
+        if not ab:
+            return False
+        session.delete(ab)
+        session.commit()
+        return True
 
 # ────────────────────────────────
 # Transaction Record CRUD
